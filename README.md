@@ -123,13 +123,26 @@ the resting order's symbol, side, price and participant, then feeds it to the
 engine as a trade. The decoder is checked against the specification message by
 message and fuzzed.
 
+**Real data:** the first 215 million messages (about half the session) of
+NASDAQ's 30 January 2019 feed, streamed straight from NASDAQ into the replay
+tool:
+
+| Messages   | Executions checked | Participants | Rejected as malformed |
+| ---------- | ------------------ | ------------ | --------------------- |
+| 214,948,560 | 4,973,362         | 108          | 0                     |
+
+2,941 executions (0.06%) reused a match number already seen and were reported
+as duplicates; why ITCH repeats them is not yet investigated. Throughput in
+that run was limited by the download, so decoder speed comes from the
+synthetic benchmark above.
+
 ```bash
 make build/itch_replay
 python3 bench/make_itch.py build/synthetic.itch 20000000   # spec-valid synthetic day
 ./build/itch_replay build/synthetic.itch
 
-# Real days (several GB each): https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/
-./build/itch_replay 01302019.NASDAQ_ITCH50.gz
+# Real days (several GB each) can be streamed without saving them:
+curl -s "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/01302019.NASDAQ_ITCH50.gz" | ./build/itch_replay -
 ```
 
 ## Build and run
@@ -180,8 +193,9 @@ web/                React dashboard
 - **The duplicate set grows for the whole session**, and it is the main cost at
   scale (see above). A production system would reset it each session and, where
   IDs are ordered, use a bounded window instead.
-- **Not yet run on a full real trading day.** The decoder is tested against the
-  spec and fuzzed, and benchmarked on synthetic data.
+- **Only half a real trading day so far**, and decoder speed on real data is
+  unmeasured (that run was download-bound). The repeated match numbers above
+  are the first thing to investigate.
 - **Latency on macOS is limited by a 42 ns clock.** On x86 Linux, timing with
   the CPU cycle counter (`rdtsc`) would resolve the median.
 - **State lives in memory.** The replay log (or the ITCH file itself) is the

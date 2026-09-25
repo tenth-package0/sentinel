@@ -1,6 +1,7 @@
 // Replays a NASDAQ TotalView-ITCH 5.0 file through the engine.
 //
 //   ./build/itch_replay 01302019.NASDAQ_ITCH50.gz
+//   curl -s https://.../01302019.NASDAQ_ITCH50.gz | ./build/itch_replay -
 //
 // Two threads connected by a lock-free ring:
 //   reader: gunzip -> split messages -> decode executions -> push Trade
@@ -35,7 +36,8 @@ struct Totals {
 
 // Reads the file in large chunks and feeds whole messages to the decoder.
 bool read_feed(const char* path, itch::Decoder& decoder, Ring& ring, Totals& totals) {
-  gzFile file = gzopen(path, "rb");
+  // "-" reads standard input, so a day can be streamed without saving it.
+  gzFile file = std::strcmp(path, "-") == 0 ? gzdopen(0, "rb") : gzopen(path, "rb");
   if (!file) return false;
   gzbuffer(file, 1 << 20);
 
