@@ -180,6 +180,9 @@ printf '%s\n' \
   | ./build/csv_ingest
 ```
 
+The complete schema and a ready-to-run fixture are in
+[CSV ingestion](docs/csv-ingestion.md) and [examples/trades.csv](examples/trades.csv).
+
 ### Web dashboard
 
 ```bash
