@@ -13,6 +13,7 @@ See [Architecture](docs/architecture.md) for the event path, state model,
 replay contract, and WebAssembly boundary.
 Benchmark claims and reproduction guidance are documented in
 [Performance methodology](docs/performance.md).
+Development and review expectations are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Results
 
