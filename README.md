@@ -144,6 +144,9 @@ as duplicates; why ITCH repeats them is not yet investigated. Throughput in
 that run was limited by the download, so decoder speed comes from the
 synthetic benchmark above.
 
+The supported message matrix and state-reconstruction rules are documented in
+[NASDAQ ITCH adapter](docs/nasdaq-itch.md).
+
 ```bash
 make build/itch_replay
 python3 bench/make_itch.py build/synthetic.itch 20000000   # spec-valid synthetic day
