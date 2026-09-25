@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,11 @@ class Engine {
 
   // The hot path: validate, reject duplicates, run the checks, update the position.
   Decision process(const Trade& trade);
+
+  // Processes a contiguous event batch in arrival order. This keeps ordering
+  // semantics identical to repeated process() calls while giving adapters one
+  // call that returns the complete decision sequence.
+  std::vector<Decision> process_batch(std::span<const Trade> trades);
 
   void set_position_limit(SymbolId symbol, std::int64_t limit);
   void restrict_symbol(SymbolId symbol);

@@ -41,6 +41,26 @@ TEST(buys_and_sells_move_the_position) {
   CHECK(engine.position(kAlice, kAapl) == -175);
 }
 
+TEST(batch_processing_matches_one_by_one_processing) {
+  const std::vector<Trade> trades = {
+      trade(1, Side::Buy, 200),
+      trade(2, Side::Sell, 75, 1'100),
+      trade(2, Side::Sell, 75, 1'100),
+      trade(3, Side::Buy, 600, 900),
+  };
+
+  Engine batch(small_config());
+  const std::vector<Decision> actual = batch.process_batch(trades);
+
+  Engine one_by_one(small_config());
+  std::vector<Decision> expected;
+  for (const Trade& event : trades) expected.push_back(one_by_one.process(event));
+
+  CHECK(actual == expected);
+  CHECK(batch.positions().size() == one_by_one.positions().size());
+  CHECK(batch.position(kAlice, kAapl) == one_by_one.position(kAlice, kAapl));
+}
+
 TEST(duplicate_event_changes_nothing) {
   Engine engine(small_config());
   engine.process(trade(7, Side::Buy, 200));

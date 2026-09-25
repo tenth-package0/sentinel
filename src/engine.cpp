@@ -58,6 +58,13 @@ Decision Engine::process(const Trade& trade) {
   return {Status::Accepted, alerts, next};
 }
 
+std::vector<Decision> Engine::process_batch(std::span<const Trade> trades) {
+  std::vector<Decision> decisions;
+  decisions.reserve(trades.size());
+  for (const Trade& trade : trades) decisions.push_back(process(trade));
+  return decisions;
+}
+
 Status Engine::validate(const Trade& trade) const {
   if (trade.id == 0) return Status::BadId;
   if (trade.account >= config_.max_accounts) return Status::BadAccount;
