@@ -1,155 +1,185 @@
 #include "sentinel/engine.hpp"
 
 #include <algorithm>
-#include <chrono>
-#include <stdexcept>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
 #include <utility>
 
 namespace sentinel {
 
-void SurveillanceEngine::add_rule(std::unique_ptr<Rule> rule) {
-  if (!rule) {
-    throw std::invalid_argument("rule cannot be null");
-  }
-  std::lock_guard<std::mutex> lock(mutex_);
-  rules_.push_back(std::move(rule));
+namespace {
+constexpr std::int64_t kNoTimestamp = std::numeric_limits<std::int64_t>::min();
+constexpr std::uint8_t bit(Alert alert) { return static_cast<std::uint8_t>(alert); }
+}  // namespace
+
+Engine::Engine(Config config)
+    : config_(config),
+      positions_(static_cast<std::size_t>(config.max_accounts) * config.max_symbols, 0),
+      watermarks_(config.max_accounts, kNoTimestamp),
+      limits_(config.max_symbols, config.position_limit),
+      restricted_(config.max_symbols, 0),
+      seen_(config.expected_events) {
+  if (config.keep_log) log_.reserve(config.expected_events);
 }
 
-ProcessingResult SurveillanceEngine::process(const Trade& trade) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return process_unlocked(trade, true);
+Decision Engine::process(const Trade& trade) {
+  if (const Status invalid = validate(trade); invalid != Status::Accepted) {
+    return {invalid, 0, 0};
+  }
+
+  std::int64_t& position = positions_[index(trade.account, trade.symbol)];
+  if (seen_.contains(trade.id)) {
+    if (config_.keep_log) log_.push_back(trade);
+    return {Status::Duplicate, 0, position};
+  }
+
+  const std::int64_t next =
+      position + (trade.side == Side::Buy ? trade.quantity : -trade.quantity);
+  if (next > kMaxPosition || next < -kMaxPosition) {
+    return {Status::PositionOverflow, 0, position};
+  }
+
+  std::uint8_t alerts = 0;
+  std::int64_t& watermark = watermarks_[trade.account];
+  if (trade.timestamp_ns < watermark) {
+    alerts |= bit(Alert::OutOfOrder);
+  } else {
+    watermark = trade.timestamp_ns;
+  }
+  if (std::abs(next) > limits_[trade.symbol]) alerts |= bit(Alert::PositionLimit);
+  if (restricted_[trade.symbol]) alerts |= bit(Alert::RestrictedSymbol);
+  if (trade.quantity * trade.price > config_.notional_limit) alerts |= bit(Alert::LargeNotional);
+
+  position = next;
+  seen_.insert(trade.id);
+  if (config_.keep_log) log_.push_back(trade);
+  return {Status::Accepted, alerts, next};
 }
 
-ProcessingResult SurveillanceEngine::process_unlocked(
-    const Trade& trade, bool retain_event) {
-  const auto started = std::chrono::steady_clock::now();
-  validate(trade);
+Status Engine::validate(const Trade& trade) const {
+  if (trade.id == 0) return Status::BadId;
+  if (trade.account >= config_.max_accounts) return Status::BadAccount;
+  if (trade.symbol >= config_.max_symbols) return Status::BadSymbol;
+  if (trade.quantity <= 0 || trade.quantity > kMaxQuantity) return Status::BadQuantity;
+  if (trade.price <= 0 || trade.price > kMaxPrice) return Status::BadPrice;
+  return Status::Accepted;
+}
 
-  ProcessingResult result;
-  result.event_id = trade.event_id;
+void Engine::set_position_limit(SymbolId symbol, std::int64_t limit) {
+  if (symbol < config_.max_symbols) limits_[symbol] = limit;
+}
 
-  const auto account_it = positions_.find(trade.account_id);
-  if (account_it != positions_.end()) {
-    const auto symbol_it = account_it->second.find(trade.symbol);
-    if (symbol_it != account_it->second.end()) {
-      result.position_after = symbol_it->second;
+void Engine::restrict_symbol(SymbolId symbol) {
+  if (symbol < config_.max_symbols) restricted_[symbol] = 1;
+}
+
+std::int64_t Engine::position(AccountId account, SymbolId symbol) const {
+  if (account >= config_.max_accounts || symbol >= config_.max_symbols) return 0;
+  return positions_[index(account, symbol)];
+}
+
+std::int64_t Engine::position_limit(SymbolId symbol) const {
+  return symbol < config_.max_symbols ? limits_[symbol] : config_.position_limit;
+}
+
+std::vector<Position> Engine::positions() const {
+  std::vector<Position> result;
+  for (AccountId account = 0; account < config_.max_accounts; ++account) {
+    for (SymbolId symbol = 0; symbol < config_.max_symbols; ++symbol) {
+      if (const std::int64_t quantity = positions_[index(account, symbol)]; quantity != 0) {
+        result.push_back({account, symbol, quantity});
+      }
     }
   }
-
-  if (processed_event_ids_.find(trade.event_id) != processed_event_ids_.end()) {
-    result.duplicate = true;
-    result.alerts.push_back(
-        {"DUPLICATE_EVENT", Severity::Info, "Event was already processed"});
-    result.processing_time_ns = static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now() - started)
-            .count());
-    audit_log_.push_back({trade, result});
-    return result;
-  }
-
-  const auto latest = latest_event_time_.find(trade.account_id);
-  if (latest != latest_event_time_.end() && trade.event_time_ms < latest->second) {
-    result.alerts.push_back({"OUT_OF_ORDER_EVENT", Severity::Warning,
-                             "Event timestamp is older than the account watermark"});
-  }
-
-  const std::int64_t signed_quantity =
-      trade.side == Side::Buy ? trade.quantity : -trade.quantity;
-  result.position_after += signed_quantity;
-
-  for (const auto& rule : rules_) {
-    if (auto alert = rule->evaluate(trade, result.position_after)) {
-      result.alerts.push_back(std::move(*alert));
-    }
-  }
-
-  positions_[trade.account_id][trade.symbol] = result.position_after;
-  processed_event_ids_.insert(trade.event_id);
-  latest_event_time_[trade.account_id] =
-      latest == latest_event_time_.end()
-          ? trade.event_time_ms
-          : std::max(latest->second, trade.event_time_ms);
-  if (retain_event) {
-    events_.push_back(trade);
-  }
-
-  result.processing_time_ns = static_cast<std::uint64_t>(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(
-          std::chrono::steady_clock::now() - started)
-          .count());
-  audit_log_.push_back({trade, result});
   return result;
 }
 
-std::vector<ProcessingResult> SurveillanceEngine::replay() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  const auto retained_events = events_;
-  reset_state_unlocked(true);
-
-  std::vector<ProcessingResult> results;
-  results.reserve(retained_events.size());
-  for (const auto& event : retained_events) {
-    results.push_back(process_unlocked(event, true));
-  }
-  return results;
+std::size_t Engine::replay() {
+  std::vector<Trade> events = std::move(log_);
+  reset();
+  log_.reserve(events.size());
+  for (const Trade& trade : events) process(trade);
+  return events.size();
 }
 
-void SurveillanceEngine::reset() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  reset_state_unlocked(true);
+void Engine::reset() {
+  std::fill(positions_.begin(), positions_.end(), 0);
+  std::fill(watermarks_.begin(), watermarks_.end(), kNoTimestamp);
+  seen_.clear();
+  log_.clear();
 }
 
-void SurveillanceEngine::reset_state_unlocked(bool clear_events) {
-  positions_.clear();
-  latest_event_time_.clear();
-  processed_event_ids_.clear();
-  audit_log_.clear();
-  if (clear_events) {
-    events_.clear();
+const char* to_string(Status status) {
+  switch (status) {
+    case Status::Accepted: return "ACCEPTED";
+    case Status::Duplicate: return "DUPLICATE";
+    case Status::BadId: return "BAD_ID";
+    case Status::BadAccount: return "BAD_ACCOUNT";
+    case Status::BadSymbol: return "BAD_SYMBOL";
+    case Status::BadQuantity: return "BAD_QUANTITY";
+    case Status::BadPrice: return "BAD_PRICE";
+    case Status::PositionOverflow: return "POSITION_OVERFLOW";
   }
+  return "UNKNOWN";
 }
 
-std::vector<Position> SurveillanceEngine::positions() const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  std::vector<Position> snapshot;
-  for (const auto& [account, symbols] : positions_) {
-    for (const auto& [symbol, quantity] : symbols) {
-      snapshot.push_back({account, symbol, quantity});
-    }
+const char* to_string(Alert alert) {
+  switch (alert) {
+    case Alert::PositionLimit: return "POSITION_LIMIT_BREACH";
+    case Alert::RestrictedSymbol: return "RESTRICTED_SYMBOL";
+    case Alert::LargeNotional: return "LARGE_NOTIONAL";
+    case Alert::OutOfOrder: return "OUT_OF_ORDER_EVENT";
   }
-  std::sort(snapshot.begin(), snapshot.end(), [](const auto& left, const auto& right) {
-    return left.account_id == right.account_id
-               ? left.symbol < right.symbol
-               : left.account_id < right.account_id;
-  });
-  return snapshot;
+  return "UNKNOWN";
 }
 
-std::vector<AuditRecord> SurveillanceEngine::audit_log() const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return audit_log_;
+const char* to_string(Severity severity) {
+  switch (severity) {
+    case Severity::None: return "NONE";
+    case Severity::Warning: return "WARNING";
+    case Severity::Critical: return "CRITICAL";
+  }
+  return "UNKNOWN";
 }
 
-std::size_t SurveillanceEngine::processed_event_count() const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return processed_event_ids_.size();
+Severity severity_of(Alert alert) {
+  return alert == Alert::PositionLimit || alert == Alert::RestrictedSymbol
+             ? Severity::Critical
+             : Severity::Warning;
 }
 
-void SurveillanceEngine::validate(const Trade& trade) {
-  if (trade.event_id.empty() || trade.account_id.empty() || trade.symbol.empty()) {
-    throw std::invalid_argument("event_id, account_id, and symbol are required");
+std::string format_price(Price price) {
+  char buffer[32];
+  const char* sign = price < 0 ? "-" : "";
+  const long long magnitude = std::llabs(price);
+  std::snprintf(buffer, sizeof buffer, "%s%lld.%02lld", sign, magnitude / kPriceScale,
+                (magnitude % kPriceScale) / 100);
+  return buffer;
+}
+
+Price parse_price(double dollars) {
+  return static_cast<Price>(std::llround(dollars * static_cast<double>(kPriceScale)));
+}
+
+std::string explain(Alert alert, const Trade& trade, const Decision& decision,
+                    const Engine& engine, const std::string& account,
+                    const std::string& symbol) {
+  switch (alert) {
+    case Alert::PositionLimit:
+      return account + " would hold " + std::to_string(decision.position) + ' ' + symbol +
+             ", exceeding the absolute limit of " +
+             std::to_string(engine.position_limit(trade.symbol));
+    case Alert::RestrictedSymbol:
+      return symbol + " is restricted from trading";
+    case Alert::LargeNotional:
+      return "Trade notional $" + format_price(trade.quantity * trade.price) + " exceeds $" +
+             format_price(engine.config().notional_limit);
+    case Alert::OutOfOrder:
+      return "Event timestamp is older than the latest event for " + account;
   }
-  if (trade.quantity <= 0) {
-    throw std::invalid_argument("quantity must be positive");
-  }
-  if (trade.price <= 0.0) {
-    throw std::invalid_argument("price must be positive");
-  }
-  if (trade.event_time_ms < 0) {
-    throw std::invalid_argument("event_time_ms cannot be negative");
-  }
+  return {};
 }
 
 }  // namespace sentinel
-

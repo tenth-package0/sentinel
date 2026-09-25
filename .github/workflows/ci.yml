@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - run: make CXX=${{ matrix.compiler }} all test
+
+  sanitizers:
+    name: Sanitizers (ASan, UBSan, TSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make CXX=clang++ sanitize
+      - run: make CXX=clang++ tsan
+
+  fuzz:
+    name: Fuzz ITCH decoder (60s)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make CXX=clang++ fuzz FUZZ_SECONDS=60
+
+  cmake:
+    name: CMake build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B out && cmake --build out -j && ctest --test-dir out --output-on-failure
+
+  benchmark:
+    name: Benchmark (smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make benchmark
+
+  web:
+    name: WebAssembly + dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+      - run: make wasm
+      - name: Committed WebAssembly matches the source
+        run: git diff --exit-code --stat web/public/wasm/ || echo "::warning::web/public/wasm differs from a fresh build; run make wasm and commit"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web

@@ -8,7 +8,6 @@ export type EngineResult = {
   eventId: string;
   duplicate: boolean;
   positionAfter: number;
-  processingTimeNs: number;
   alerts: Alert[];
   error?: string;
 };
@@ -23,7 +22,6 @@ export type TradeInput = {
   quantity: number;
   price: number;
   eventTimeMs: number;
-  sourceSequence: number;
 };
 
 type WasmModule = {
@@ -76,7 +74,7 @@ export class SentinelClient {
     const raw = this.module.ccall(
       "sentinel_process",
       "string",
-      ["string", "string", "string", "number", "number", "number", "number", "number"],
+      ["string", "string", "string", "number", "number", "number", "number"],
       [
         trade.eventId,
         trade.accountId,
@@ -85,10 +83,17 @@ export class SentinelClient {
         trade.quantity,
         trade.price,
         trade.eventTimeMs,
-        trade.sourceSequence,
       ],
     ) as string;
     return JSON.parse(raw) as EngineResult;
+  }
+
+  /**
+   * Runs the native benchmark's workload inside WebAssembly on a separate,
+   * preallocated engine (dashboard state is untouched). Returns ns per trade.
+   */
+  benchmark(trades: number): number {
+    return this.module.ccall("sentinel_benchmark", "number", ["number"], [trades]) as number;
   }
 
   positions(): Position[] {

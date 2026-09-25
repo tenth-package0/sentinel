@@ -1,23 +1,32 @@
 cmake_minimum_required(VERSION 3.20)
-project(sentinel VERSION 0.1.0 LANGUAGES CXX)
+project(sentinel VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
 
-add_library(sentinel src/engine.cpp)
+add_library(sentinel src/engine.cpp src/itch.cpp)
 target_include_directories(sentinel PUBLIC include)
-target_compile_options(sentinel PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(sentinel PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(sentinel_demo apps/demo.cpp)
-target_link_libraries(sentinel_demo PRIVATE sentinel)
+find_package(Threads REQUIRED)
+find_package(ZLIB REQUIRED)
 
-add_executable(sentinel_tests tests/engine_tests.cpp)
-target_link_libraries(sentinel_tests PRIVATE sentinel)
+add_executable(demo apps/demo.cpp)
+target_link_libraries(demo PRIVATE sentinel)
 
-add_executable(sentinel_benchmark bench/benchmark.cpp)
-target_link_libraries(sentinel_benchmark PRIVATE sentinel)
+add_executable(benchmark bench/benchmark.cpp)
+target_link_libraries(benchmark PRIVATE sentinel)
+
+add_executable(itch_replay apps/itch_replay.cpp)
+target_link_libraries(itch_replay PRIVATE sentinel Threads::Threads ZLIB::ZLIB)
+
+file(GLOB TEST_SOURCES tests/*.cpp)
+add_executable(tests ${TEST_SOURCES})
+target_link_libraries(tests PRIVATE sentinel Threads::Threads)
 
 enable_testing()
-add_test(NAME sentinel_tests COMMAND sentinel_tests)
-
+add_test(NAME tests COMMAND tests)
