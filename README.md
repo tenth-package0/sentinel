@@ -9,6 +9,9 @@ browser through WebAssembly.
 
 Released under the [MIT License](LICENSE).
 
+See [Architecture](docs/architecture.md) for the event path, state model,
+replay contract, and WebAssembly boundary.
+
 ## Results
 
 Same machine (Apple M4, clang 21, `-O3`), same workload of 5 million trades
