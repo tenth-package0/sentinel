@@ -24,7 +24,7 @@ constexpr std::size_t kBody = 11;
 
 }  // namespace
 
-Decoder::Decoder() : anonymous_(accounts_.intern("ANON")) { orders_.reserve(1 << 20); }
+Decoder::Decoder() : anonymous_(accounts_.intern("ANON")) {}
 
 std::string Decoder::symbol(SymbolId locate) const {
   return locate < symbols_.size() && !symbols_[locate].empty() ? symbols_[locate]
@@ -48,11 +48,10 @@ std::optional<Trade> Decoder::decode(const std::uint8_t* m, std::size_t length) 
     case 'F':  // Add order, attributed to a participant.
       if (length < (m[0] == 'F' ? 40u : 36u)) break;
       add(read(body, 8),
-          {locate,
+          {static_cast<Price>(read(body + 21, 4)), locate,
            m[0] == 'F' ? accounts_.intern(trim(body + 25, 4)) : anonymous_,
-           body[8] == 'B' ? Side::Buy : Side::Sell,
-           static_cast<Price>(read(body + 21, 4)),
-           static_cast<std::uint32_t>(read(body + 9, 4))});
+           static_cast<std::uint32_t>(read(body + 9, 4)),
+           body[8] == 'B' ? Side::Buy : Side::Sell});
       break;
 
     case 'E':  // Order executed at its limit price.
@@ -77,10 +76,11 @@ std::optional<Trade> Decoder::decode(const std::uint8_t* m, std::size_t length) 
 
     case 'U': {  // Replace: new reference, shares, and price; same side and participant.
       if (length < 35) break;
-      const auto found = orders_.find(read(body, 8));
-      if (found == orders_.end()) break;
-      Order order = found->second;
-      orders_.erase(found);
+      const std::uint64_t old_ref = read(body, 8);
+      const Order* found = orders_.find(old_ref);
+      if (!found) break;
+      Order order = *found;
+      orders_.erase(old_ref);
       order.shares = static_cast<std::uint32_t>(read(body + 16, 4));
       order.price = static_cast<Price>(read(body + 20, 4));
       add(read(body + 8, 8), order);
@@ -104,15 +104,15 @@ std::optional<Trade> Decoder::decode(const std::uint8_t* m, std::size_t length) 
 }
 
 void Decoder::add(std::uint64_t reference, const Order& order) {
-  if (order.shares > 0) orders_[reference] = order;
+  if (order.shares > 0) orders_.insert(reference, order);
 }
 
 std::optional<Trade> Decoder::execute(std::uint64_t reference, std::uint32_t shares,
                                       Price price, std::uint64_t match,
                                       std::int64_t timestamp) {
-  const auto found = orders_.find(reference);
-  if (found == orders_.end()) return std::nullopt;
-  const Order& order = found->second;
+  const Order* found = orders_.find(reference);
+  if (!found) return std::nullopt;
+  const Order order = *found;
 
   Trade trade;
   trade.id = match;
@@ -127,12 +127,12 @@ std::optional<Trade> Decoder::execute(std::uint64_t reference, std::uint32_t sha
 }
 
 void Decoder::reduce(std::uint64_t reference, std::uint32_t shares) {
-  const auto found = orders_.find(reference);
-  if (found == orders_.end()) return;
-  if (found->second.shares <= shares) {
-    orders_.erase(found);
+  Order* found = orders_.find(reference);
+  if (!found) return;
+  if (found->shares <= shares) {
+    orders_.erase(reference);
   } else {
-    found->second.shares -= shares;
+    found->shares -= shares;
   }
 }
 

@@ -5,10 +5,14 @@
 // never allocates.
 //
 //   throughput: wall time for the whole stream, median of 5 runs
+//   scaling:    throughput at smaller sizes, to show where the time goes: the
+//               duplicate-ID set grows with the stream, and once it outgrows the
+//               CPU caches each lookup becomes a trip to main memory
 //   latency:    each call timed individually with steady_clock; the clock's own
 //               resolution and overhead are printed so the tail can be read honestly
 
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -28,14 +32,9 @@ long long ns(Clock::duration d) {
   return static_cast<long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(d).count());
 }
 
-}  // namespace
-
-int main(int argc, char** argv) {
-  const std::size_t count = argc > 1 ? std::strtoull(argv[1], nullptr, 10) : 5'000'000;
-  const std::vector<Trade> trades = bench::trades(count);
-  Engine engine(bench::config(count));
-
-  // Warm-up pass: touches every page and trains the branch predictors.
+// Median nanoseconds per trade over five timed passes, after a warm-up pass
+// that touches every page and trains the branch predictors.
+double median_ns(Engine& engine, const std::vector<Trade>& trades, double& flagged_share) {
   std::uint64_t flagged = 0;
   for (const Trade& t : trades) flagged += engine.process(t).alerts != 0;
 
@@ -45,11 +44,22 @@ int main(int argc, char** argv) {
     flagged = 0;
     const auto start = Clock::now();
     for (const Trade& t : trades) flagged += engine.process(t).alerts != 0;
-    runs.push_back(seconds(Clock::now() - start));
+    runs.push_back(seconds(Clock::now() - start) * 1e9 / static_cast<double>(trades.size()));
   }
   std::sort(runs.begin(), runs.end());
-  const double median = runs[runs.size() / 2];
-  const double flagged_share = static_cast<double>(flagged) / static_cast<double>(count);
+  flagged_share = static_cast<double>(flagged) / static_cast<double>(trades.size());
+  return runs[runs.size() / 2];
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  const std::size_t count = argc > 1 ? std::strtoull(argv[1], nullptr, 10) : 5'000'000;
+  const std::vector<Trade> trades = bench::trades(count);
+  Engine engine(bench::config(count));
+
+  double flagged_share = 0;
+  const double ns_per_trade = median_ns(engine, trades, flagged_share);
 
   // Per-call latency.
   engine.reset();
@@ -84,9 +94,19 @@ int main(int argc, char** argv) {
               count, bench::kAccounts, bench::kSymbols);
   std::printf("  flagged           %.1f%% of events raised at least one alert\n",
               100.0 * flagged_share);
-  std::printf("\nThroughput (median of %zu runs)\n", runs.size());
-  std::printf("  %.1f ns/event   %.1f M events/s\n", median * 1e9 / static_cast<double>(count),
-              static_cast<double>(count) / median / 1e6);
+  std::printf("\nThroughput (median of 5 runs)\n");
+  std::printf("  %.1f ns/event   %.1f M events/s\n", ns_per_trade, 1e3 / ns_per_trade);
+
+  std::printf("\nScaling: time per trade vs. size of the duplicate-ID set\n");
+  for (const std::size_t n : {10'000ul, 100'000ul, 1'000'000ul, count}) {
+    if (n > count) continue;
+    const std::vector<Trade> subset(trades.begin(), trades.begin() + static_cast<long>(n));
+    Engine small(bench::config(n));
+    double unused = 0;
+    const double t = n == count ? ns_per_trade : median_ns(small, subset, unused);
+    const double set_mb = static_cast<double>(std::bit_ceil(n * 2) * sizeof(std::uint64_t)) / 1e6;
+    std::printf("  %9zu trades   set %7.2f MB   %5.1f ns/event\n", n, set_mb, t);
+  }
   std::printf("\nLatency per call (ns, includes clock overhead)\n");
   std::printf("  p50 %lld   p90 %lld   p99 %lld   p99.9 %lld   p99.99 %lld   max %lld\n", pct(0.5),
               pct(0.9), pct(0.99), pct(0.999), pct(0.9999), latency.back());

@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "sentinel/names.hpp"
+#include "sentinel/order_table.hpp"
 #include "sentinel/types.hpp"
 
 namespace sentinel::itch {
@@ -43,14 +43,6 @@ class Decoder {
   std::size_t live_orders() const { return orders_.size(); }
 
  private:
-  struct Order {
-    SymbolId symbol;
-    AccountId account;
-    Side side;
-    Price price;
-    std::uint32_t shares;
-  };
-
   void add(std::uint64_t reference, const Order& order);
   std::optional<Trade> execute(std::uint64_t reference, std::uint32_t shares, Price price,
                                std::uint64_t match, std::int64_t timestamp);
@@ -58,7 +50,7 @@ class Decoder {
 
   Names accounts_;
   AccountId anonymous_;
-  std::unordered_map<std::uint64_t, Order> orders_;
+  OrderTable orders_;
   std::vector<std::string> symbols_;
 };
 
