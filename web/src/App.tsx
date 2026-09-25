@@ -691,6 +691,7 @@ function EventDrawer({ item, limits, onClose }: { item: FeedItem; limits: { posi
           <div><dt>Notional</dt><dd>{money.format(item.notional)}</dd></div>
           <div><dt>Event time</dt><dd>{new Date(item.eventTimeMs).toISOString().replace("T", " ").slice(0, 23)}</dd></div>
           <div><dt>Status</dt><dd>{item.duplicate ? "DUPLICATE" : "ACCEPTED"}</dd></div>
+          <div><dt>Policy version</dt><dd>v{integer.format(item.policyVersion)}</dd></div>
         </dl>
 
         <h4>Rule inputs</h4>
