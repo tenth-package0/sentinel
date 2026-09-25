@@ -1,5 +1,7 @@
 # Sentinel
 
+**Live demo:** [sentinel-demo-peach.vercel.app](https://sentinel-demo-peach.vercel.app)
+
 Sentinel is a small C++20 trade-surveillance engine that maintains account
 positions and evaluates every trade against compliance rules. The first version
 focuses on the failure modes that make event processing difficult: duplicate
@@ -33,6 +35,10 @@ extension point for new surveillance checks. Persistence and transport adapters
 will sit outside the engine so a PostgreSQL repository, message broker, CLI, or
 WebAssembly interface can be added without changing compliance logic.
 
+The hosted dashboard compiles this exact engine to WebAssembly. Trade injection,
+market replay, position state, and surveillance alerts all execute locally in
+the browser through the C++ API in `apps/wasm_bridge.cpp`.
+
 ## Build and run
 
 The repository includes CMake for portable builds and a Makefile for a zero-setup
@@ -51,6 +57,19 @@ Pass an event count directly to the benchmark when needed:
 ./build/sentinel_benchmark 500000
 ```
 
+## Web dashboard
+
+Install Emscripten, compile the C++ engine to WebAssembly, and build the Vite
+dashboard:
+
+```bash
+source /path/to/emsdk/emsdk_env.sh
+make wasm
+cd web
+npm install
+npm run build
+```
+
 ## Project layout
 
 ```text
@@ -59,6 +78,7 @@ src/               Engine implementation
 apps/              Executable demos and future adapters
 tests/             Deterministic behavioral tests
 bench/             Throughput and latency benchmark
+web/               React dashboard and compiled WebAssembly runtime
 ```
 
 ## Next increments
@@ -68,4 +88,3 @@ bench/             Throughput and latency benchmark
 3. Expose a narrow JSON API for ingestion and state inspection.
 4. Compile the dependency-free core to WebAssembly for the Vercel demo.
 5. Add property-based event-sequence tests and concurrent ingestion benchmarks.
-
