@@ -11,6 +11,8 @@ Released under the [MIT License](LICENSE).
 
 See [Architecture](docs/architecture.md) for the event path, state model,
 replay contract, and WebAssembly boundary.
+Benchmark claims and reproduction guidance are documented in
+[Performance methodology](docs/performance.md).
 
 ## Results
 
