@@ -62,12 +62,13 @@ std::string audit_json(const AuditRecord& record) {
          ",\"timestampNs\":" + std::to_string(trade.timestamp_ns) +
          ",\"status\":" + json_string(to_string(decision.status)) +
          ",\"severity\":" + json_string(to_string(decision.severity())) +
+         ",\"policyVersion\":" + std::to_string(decision.policy_version) +
          ",\"position\":" + std::to_string(decision.position) +
          ",\"alerts\":" + alerts + '}';
 }
 
 std::string audit_csv_header() {
-  return "event_id,account,symbol,side,quantity,price,timestamp_ns,status,severity,position,alerts";
+  return "event_id,account,symbol,side,quantity,price,timestamp_ns,status,severity,policy_version,position,alerts";
 }
 
 std::string audit_csv_row(const AuditRecord& record) {
@@ -81,7 +82,9 @@ std::string audit_csv_row(const AuditRecord& record) {
          csv_field(record.symbol) + ',' + side_name(record.trade.side) + ',' +
          std::to_string(record.trade.quantity) + ',' + format_price(record.trade.price) + ',' +
          std::to_string(record.trade.timestamp_ns) + ',' + to_string(record.decision.status) + ',' +
-         to_string(record.decision.severity()) + ',' + std::to_string(record.decision.position) + ',' +
+         to_string(record.decision.severity()) + ',' +
+         std::to_string(record.decision.policy_version) + ',' +
+         std::to_string(record.decision.position) + ',' +
          csv_field(alerts);
 }
 

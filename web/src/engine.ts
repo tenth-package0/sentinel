@@ -8,6 +8,7 @@ export type EngineResult = {
   eventId: string;
   duplicate: boolean;
   positionAfter: number;
+  policyVersion: number;
   alerts: Alert[];
   error?: string;
 };

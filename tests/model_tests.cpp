@@ -24,14 +24,16 @@ class Model {
   explicit Model(const Config& config) : config_(config) {}
 
   Decision process(const Trade& t) {
-    if (t.id == 0) return {Status::BadId, 0, 0};
-    if (t.account >= config_.max_accounts) return {Status::BadAccount, 0, 0};
-    if (t.symbol >= config_.max_symbols) return {Status::BadSymbol, 0, 0};
-    if (t.quantity < 1 || t.quantity > kMaxQuantity) return {Status::BadQuantity, 0, 0};
-    if (t.price < 1 || t.price > kMaxPrice) return {Status::BadPrice, 0, 0};
+    if (t.id == 0) return {Status::BadId, 0, 0, policy_version_};
+    if (t.account >= config_.max_accounts) return {Status::BadAccount, 0, 0, policy_version_};
+    if (t.symbol >= config_.max_symbols) return {Status::BadSymbol, 0, 0, policy_version_};
+    if (t.quantity < 1 || t.quantity > kMaxQuantity) {
+      return {Status::BadQuantity, 0, 0, policy_version_};
+    }
+    if (t.price < 1 || t.price > kMaxPrice) return {Status::BadPrice, 0, 0, policy_version_};
 
     std::int64_t& position = positions_[{t.account, t.symbol}];
-    if (seen_.count(t.id)) return {Status::Duplicate, 0, position};
+    if (seen_.count(t.id)) return {Status::Duplicate, 0, position, policy_version_};
 
     std::uint8_t alerts = 0;
     const auto latest = latest_.find(t.account);
@@ -44,12 +46,16 @@ class Model {
     if (position > config_.position_limit || position < -config_.position_limit) {
       alerts |= static_cast<std::uint8_t>(Alert::PositionLimit);
     }
-    if (t.symbol == kRestricted) alerts |= static_cast<std::uint8_t>(Alert::RestrictedSymbol);
+    if (restricted_.count(t.symbol)) alerts |= static_cast<std::uint8_t>(Alert::RestrictedSymbol);
     if (t.quantity * t.price > config_.notional_limit) {
       alerts |= static_cast<std::uint8_t>(Alert::LargeNotional);
     }
     seen_.insert(t.id);
-    return {Status::Accepted, alerts, position};
+    return {Status::Accepted, alerts, position, policy_version_};
+  }
+
+  void restrict_symbol(SymbolId symbol) {
+    if (restricted_.insert(symbol).second) ++policy_version_;
   }
 
   std::int64_t position(AccountId a, SymbolId s) {
@@ -62,6 +68,8 @@ class Model {
   std::map<std::pair<AccountId, SymbolId>, std::int64_t> positions_;
   std::map<AccountId, std::int64_t> latest_;
   std::set<EventId> seen_;
+  std::set<SymbolId> restricted_;
+  std::uint64_t policy_version_{1};
 };
 
 Trade random_trade(std::mt19937_64& rng, std::int64_t& clock) {
@@ -88,6 +96,7 @@ void run(std::uint64_t seed) {
   Engine engine(config);
   engine.restrict_symbol(kRestricted);
   Model model(config);
+  model.restrict_symbol(kRestricted);
 
   std::mt19937_64 rng(seed);
   std::int64_t clock = 0;

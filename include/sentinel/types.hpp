@@ -64,6 +64,7 @@ struct Decision {
   Status status{Status::Accepted};
   std::uint8_t alerts{0};   // Bitwise OR of Alert values.
   std::int64_t position{0};  // Position after this trade.
+  std::uint64_t policy_version{1};  // Ruleset version used for this decision.
 
   bool accepted() const { return status == Status::Accepted; }
   bool has(Alert alert) const { return (alerts & static_cast<std::uint8_t>(alert)) != 0; }

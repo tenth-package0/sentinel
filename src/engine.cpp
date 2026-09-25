@@ -26,19 +26,19 @@ Engine::Engine(Config config)
 
 Decision Engine::process(const Trade& trade) {
   if (const Status invalid = validate(trade); invalid != Status::Accepted) {
-    return {invalid, 0, 0};
+    return {invalid, 0, 0, policy_version_};
   }
 
   std::int64_t& position = positions_[index(trade.account, trade.symbol)];
   if (seen_.contains(trade.id)) {
     if (config_.keep_log) log_.push_back(trade);
-    return {Status::Duplicate, 0, position};
+    return {Status::Duplicate, 0, position, policy_version_};
   }
 
   const std::int64_t next =
       position + (trade.side == Side::Buy ? trade.quantity : -trade.quantity);
   if (next > kMaxPosition || next < -kMaxPosition) {
-    return {Status::PositionOverflow, 0, position};
+    return {Status::PositionOverflow, 0, position, policy_version_};
   }
 
   std::uint8_t alerts = 0;
@@ -55,7 +55,7 @@ Decision Engine::process(const Trade& trade) {
   position = next;
   seen_.insert(trade.id);
   if (config_.keep_log) log_.push_back(trade);
-  return {Status::Accepted, alerts, next};
+  return {Status::Accepted, alerts, next, policy_version_};
 }
 
 std::vector<Decision> Engine::process_batch(std::span<const Trade> trades) {
@@ -76,25 +76,33 @@ Status Engine::validate(const Trade& trade) const {
 
 bool Engine::set_position_limit(SymbolId symbol, std::int64_t limit) {
   if (symbol >= config_.max_symbols || limit < 0 || limit > kMaxPosition) return false;
+  if (limits_[symbol] == limit) return true;
   limits_[symbol] = limit;
+  ++policy_version_;
   return true;
 }
 
 bool Engine::set_notional_limit(Price limit) {
   if (limit < 0 || limit > kMaxQuantity * kMaxPrice) return false;
+  if (config_.notional_limit == limit) return true;
   config_.notional_limit = limit;
+  ++policy_version_;
   return true;
 }
 
 bool Engine::restrict_symbol(SymbolId symbol) {
   if (symbol >= config_.max_symbols) return false;
+  if (restricted_[symbol]) return true;
   restricted_[symbol] = 1;
+  ++policy_version_;
   return true;
 }
 
 bool Engine::allow_symbol(SymbolId symbol) {
   if (symbol >= config_.max_symbols) return false;
+  if (!restricted_[symbol]) return true;
   restricted_[symbol] = 0;
+  ++policy_version_;
   return true;
 }
 

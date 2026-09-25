@@ -108,7 +108,9 @@ EMSCRIPTEN_KEEPALIVE const char* sentinel_process(const char* event_id, const ch
 
   std::string json = "{\"eventId\":" + quoted(event_id) +
                      ",\"duplicate\":" + (d.status == Status::Duplicate ? "true" : "false") +
-                     ",\"positionAfter\":" + std::to_string(d.position) + ",\"alerts\":[";
+                     ",\"positionAfter\":" + std::to_string(d.position) +
+                     ",\"policyVersion\":" + std::to_string(d.policy_version) +
+                     ",\"alerts\":[";
   bool first = true;
   if (d.status == Status::Duplicate) {
     json += R"({"code":"DUPLICATE_EVENT","severity":"INFO","message":"Event was already processed"})";

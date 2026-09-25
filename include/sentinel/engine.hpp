@@ -59,6 +59,7 @@ class Engine {
   std::int64_t position_limit(SymbolId symbol) const;
   Price notional_limit() const { return config_.notional_limit; }
   bool is_restricted(SymbolId symbol) const;
+  std::uint64_t policy_version() const { return policy_version_; }
   std::vector<Position> positions() const;  // Non-zero positions, sorted by account then symbol.
   std::size_t accepted_count() const { return seen_.size(); }
   const Config& config() const { return config_; }
@@ -86,6 +87,7 @@ class Engine {
   std::vector<std::uint8_t> restricted_;    // 1 if restricted, per symbol.
   IdSet seen_;
   std::vector<Trade> log_;
+  std::uint64_t policy_version_{1};
 };
 
 // Off the hot path: text for display, logs, and the web dashboard.

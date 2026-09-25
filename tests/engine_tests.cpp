@@ -92,22 +92,30 @@ TEST(restricted_symbol_is_critical) {
 
 TEST(policies_can_be_updated_and_inspected_safely) {
   Engine engine(small_config());
+  CHECK(engine.policy_version() == 1);
 
   CHECK(engine.set_position_limit(kAapl, 250));
+  CHECK(engine.policy_version() == 2);
   CHECK(engine.position_limit(kAapl) == 250);
+  CHECK(engine.set_position_limit(kAapl, 250));
+  CHECK(engine.policy_version() == 2);  // No change, so no new version.
   CHECK(!engine.set_position_limit(kAapl, -1));
   CHECK(!engine.set_position_limit(99, 250));
 
   CHECK(engine.restrict_symbol(kLock));
+  CHECK(engine.policy_version() == 3);
   CHECK(engine.is_restricted(kLock));
   CHECK(engine.allow_symbol(kLock));
+  CHECK(engine.policy_version() == 4);
   CHECK(!engine.is_restricted(kLock));
   CHECK(!engine.restrict_symbol(99));
   CHECK(!engine.allow_symbol(99));
 
   CHECK(engine.set_notional_limit(10'000 * kPriceScale));
+  CHECK(engine.policy_version() == 5);
   CHECK(engine.notional_limit() == 10'000 * kPriceScale);
   CHECK(!engine.set_notional_limit(-1));
+  CHECK(engine.process(trade(1, Side::Buy, 1)).policy_version == 5);
 }
 
 TEST(large_notional_fires_strictly_above_the_threshold) {
