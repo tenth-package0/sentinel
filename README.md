@@ -7,6 +7,8 @@ browser through WebAssembly.
 
 **Live demo:** [sentinel-demo-peach.vercel.app](https://sentinel-demo-peach.vercel.app)
 
+Released under the [MIT License](LICENSE).
+
 ## Results
 
 Same machine (Apple M4, clang 21, `-O3`), same workload of 5 million trades
