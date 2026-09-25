@@ -50,11 +50,15 @@ class Engine {
   // call that returns the complete decision sequence.
   std::vector<Decision> process_batch(std::span<const Trade> trades);
 
-  void set_position_limit(SymbolId symbol, std::int64_t limit);
-  void restrict_symbol(SymbolId symbol);
+  bool set_position_limit(SymbolId symbol, std::int64_t limit);
+  bool set_notional_limit(Price limit);
+  bool restrict_symbol(SymbolId symbol);
+  bool allow_symbol(SymbolId symbol);
 
   std::int64_t position(AccountId account, SymbolId symbol) const;
   std::int64_t position_limit(SymbolId symbol) const;
+  Price notional_limit() const { return config_.notional_limit; }
+  bool is_restricted(SymbolId symbol) const;
   std::vector<Position> positions() const;  // Non-zero positions, sorted by account then symbol.
   std::size_t accepted_count() const { return seen_.size(); }
   const Config& config() const { return config_; }

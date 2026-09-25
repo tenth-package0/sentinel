@@ -74,12 +74,32 @@ Status Engine::validate(const Trade& trade) const {
   return Status::Accepted;
 }
 
-void Engine::set_position_limit(SymbolId symbol, std::int64_t limit) {
-  if (symbol < config_.max_symbols) limits_[symbol] = limit;
+bool Engine::set_position_limit(SymbolId symbol, std::int64_t limit) {
+  if (symbol >= config_.max_symbols || limit < 0 || limit > kMaxPosition) return false;
+  limits_[symbol] = limit;
+  return true;
 }
 
-void Engine::restrict_symbol(SymbolId symbol) {
-  if (symbol < config_.max_symbols) restricted_[symbol] = 1;
+bool Engine::set_notional_limit(Price limit) {
+  if (limit < 0 || limit > kMaxQuantity * kMaxPrice) return false;
+  config_.notional_limit = limit;
+  return true;
+}
+
+bool Engine::restrict_symbol(SymbolId symbol) {
+  if (symbol >= config_.max_symbols) return false;
+  restricted_[symbol] = 1;
+  return true;
+}
+
+bool Engine::allow_symbol(SymbolId symbol) {
+  if (symbol >= config_.max_symbols) return false;
+  restricted_[symbol] = 0;
+  return true;
+}
+
+bool Engine::is_restricted(SymbolId symbol) const {
+  return symbol < config_.max_symbols && restricted_[symbol] != 0;
 }
 
 std::int64_t Engine::position(AccountId account, SymbolId symbol) const {
