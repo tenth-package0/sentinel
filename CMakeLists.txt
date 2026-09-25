@@ -8,7 +8,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_library(sentinel src/engine.cpp src/itch.cpp)
+add_library(sentinel src/engine.cpp src/itch.cpp src/audit.cpp)
 target_include_directories(sentinel PUBLIC include)
 target_compile_options(sentinel PRIVATE -Wall -Wextra -Wpedantic -Werror)
 

@@ -3,7 +3,7 @@ CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror
 CPPFLAGS += -Iinclude
 BUILD    := build
 
-CORE  := src/engine.cpp src/itch.cpp
+CORE  := src/engine.cpp src/itch.cpp src/audit.cpp
 TESTS := $(wildcard tests/*.cpp)
 SAN   := -std=c++20 -O1 -g -fno-omit-frame-pointer
 
