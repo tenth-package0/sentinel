@@ -157,8 +157,8 @@ curl -s "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/01302019.NASDAQ_ITCH50.gz" | 
 Needs a C++20 compiler (Clang or GCC) and zlib.
 
 ```bash
-make            # demo, tests, benchmark, itch_replay
-make test       # 25 tests
+make            # builds the native tools and tests
+make test       # runs the complete deterministic test suite
 make sanitize   # AddressSanitizer + UndefinedBehaviorSanitizer
 make tsan       # ThreadSanitizer
 make benchmark
@@ -166,6 +166,18 @@ make benchmark
 ```
 
 CMake works too: `cmake -S . -B out && cmake --build out && ctest --test-dir out`.
+
+### Stream CSV trades
+
+`csv_ingest` accepts machine-generated CSV on standard input and emits one JSON
+audit record per trade:
+
+```bash
+printf '%s\n' \
+  'event_id,account,symbol,side,quantity,price,timestamp_ns' \
+  '1,ALPHA-7,AAPL,BUY,125,191.4201,987654321' \
+  | ./build/csv_ingest
+```
 
 ### Web dashboard
 

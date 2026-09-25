@@ -8,7 +8,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_library(sentinel src/engine.cpp src/itch.cpp src/audit.cpp)
+add_library(sentinel src/engine.cpp src/itch.cpp src/audit.cpp src/csv.cpp)
 target_include_directories(sentinel PUBLIC include)
 target_compile_options(sentinel PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
@@ -23,6 +23,9 @@ target_link_libraries(benchmark PRIVATE sentinel)
 
 add_executable(itch_replay apps/itch_replay.cpp)
 target_link_libraries(itch_replay PRIVATE sentinel Threads::Threads ZLIB::ZLIB)
+
+add_executable(csv_ingest apps/csv_ingest.cpp)
+target_link_libraries(csv_ingest PRIVATE sentinel)
 
 file(GLOB TEST_SOURCES tests/*.cpp)
 add_executable(tests ${TEST_SOURCES})

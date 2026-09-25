@@ -3,13 +3,13 @@ CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror
 CPPFLAGS += -Iinclude
 BUILD    := build
 
-CORE  := src/engine.cpp src/itch.cpp src/audit.cpp
+CORE  := src/engine.cpp src/itch.cpp src/audit.cpp src/csv.cpp
 TESTS := $(wildcard tests/*.cpp)
 SAN   := -std=c++20 -O1 -g -fno-omit-frame-pointer
 
 .PHONY: all test sanitize tsan benchmark fuzz wasm clean
 
-all: $(BUILD)/demo $(BUILD)/tests $(BUILD)/benchmark $(BUILD)/itch_replay
+all: $(BUILD)/demo $(BUILD)/tests $(BUILD)/benchmark $(BUILD)/itch_replay $(BUILD)/csv_ingest
 
 $(BUILD):
 	mkdir -p $@
@@ -25,6 +25,9 @@ $(BUILD)/benchmark: $(CORE) bench/benchmark.cpp bench/workload.hpp | $(BUILD)
 
 $(BUILD)/itch_replay: $(CORE) apps/itch_replay.cpp | $(BUILD)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O3 -DNDEBUG $^ -o $@ -pthread -lz
+
+$(BUILD)/csv_ingest: $(CORE) apps/csv_ingest.cpp | $(BUILD)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@
 
 test: $(BUILD)/tests
 	./$(BUILD)/tests
