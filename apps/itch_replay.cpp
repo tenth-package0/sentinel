@@ -43,9 +43,15 @@ bool read_feed(const char* path, itch::Decoder& decoder, Ring& ring, Totals& tot
 
   std::vector<std::uint8_t> buffer(8 << 20);
   std::size_t filled = 0;
+  bool complete = true;
   for (;;) {
     const int n = gzread(file, buffer.data() + filled, static_cast<unsigned>(buffer.size() - filled));
-    if (n <= 0) break;
+    if (n <= 0) {
+      int error = Z_OK;
+      gzerror(file, &error);
+      if (n < 0 || (error != Z_OK && error != Z_STREAM_END)) complete = false;
+      break;
+    }
     filled += static_cast<std::size_t>(n);
     const std::size_t used = itch::for_each_message(
         buffer.data(), filled, [&](const std::uint8_t* message, std::size_t length) {
@@ -59,7 +65,7 @@ bool read_feed(const char* path, itch::Decoder& decoder, Ring& ring, Totals& tot
     filled -= used;
   }
   gzclose(file);
-  return true;
+  return complete && filled == 0;
 }
 
 }  // namespace
@@ -111,7 +117,7 @@ int main(int argc, char** argv) {
       std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
   if (!opened) {
-    std::fprintf(stderr, "could not open %s\n", argv[1]);
+    std::fprintf(stderr, "could not read a complete ITCH feed from %s\n", argv[1]);
     return 1;
   }
   std::printf("ITCH replay: %s\n", argv[1]);
