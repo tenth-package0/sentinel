@@ -21,10 +21,16 @@ int main() {
   std::string line;
   std::size_t line_number = 0;
   std::size_t errors = 0;
+  bool first_record = true;
   while (std::getline(std::cin, line)) {
     ++line_number;
+    if (line_number == 1 && line.starts_with("\xEF\xBB\xBF")) line.erase(0, 3);
     if (line.empty() || line.front() == '#') continue;
-    if (line_number == 1 && line.starts_with("event_id,")) continue;
+    if (first_record && line.starts_with("event_id,")) {
+      first_record = false;
+      continue;
+    }
+    first_record = false;
 
     CsvTrade parsed;
     const CsvError error = parse_trade_csv(line, accounts, symbols, parsed);
