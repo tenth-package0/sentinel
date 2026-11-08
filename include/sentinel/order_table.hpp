@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <vector>
@@ -28,7 +29,9 @@ struct Order {
 // into the gap, leaving the table exactly as if the key had never been added.
 class OrderTable {
  public:
-  explicit OrderTable(std::size_t expected = 1 << 20) { rebuild(std::bit_ceil(expected * 2)); }
+  explicit OrderTable(std::size_t expected = 1 << 20) {
+    rebuild(std::max(std::size_t{2}, std::bit_ceil(expected * 2)));
+  }
 
   Order* find(std::uint64_t ref) {
     if (ref == 0) return nullptr;

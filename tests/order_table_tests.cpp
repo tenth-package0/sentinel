@@ -44,3 +44,15 @@ TEST(order_table_ignores_reference_zero) {
   CHECK(table.size() == 0);
   table.erase(0);
 }
+
+TEST(order_table_supports_empty_capacity_hint) {
+  OrderTable table(0);
+  table.insert(1, Order{0, 0, 0, 10, sentinel::Side::Buy});
+  table.insert(2, Order{0, 0, 0, 20, sentinel::Side::Buy});
+  CHECK(table.size() == 2);
+  CHECK(table.find(1) && table.find(1)->shares == 10);
+  CHECK(table.find(2) && table.find(2)->shares == 20);
+  table.erase(1);
+  CHECK(table.find(1) == nullptr);
+  CHECK(table.size() == 1);
+}
