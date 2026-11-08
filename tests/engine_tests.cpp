@@ -241,6 +241,7 @@ TEST(prices_are_exact_integers) {
   CHECK(parse_price(0.0001) == 1);
   CHECK(format_price(1'914'200) == "191.42");
   CHECK(format_price(250'000 * kPriceScale) == "250000.00");
+  CHECK(format_price(std::numeric_limits<Price>::min()) == "-922337203685477.58");
   CHECK(parse_price(-1.0) == 0);
   CHECK(parse_price(std::numeric_limits<double>::infinity()) == 0);
   CHECK(parse_price(std::numeric_limits<double>::quiet_NaN()) == 0);

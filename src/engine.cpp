@@ -188,9 +188,12 @@ Severity severity_of(Alert alert) {
 std::string format_price(Price price) {
   char buffer[32];
   const char* sign = price < 0 ? "-" : "";
-  const long long magnitude = std::llabs(price);
-  std::snprintf(buffer, sizeof buffer, "%s%lld.%02lld", sign, magnitude / kPriceScale,
-                (magnitude % kPriceScale) / 100);
+  const std::uint64_t magnitude = price < 0
+      ? static_cast<std::uint64_t>(-(price + 1)) + 1
+      : static_cast<std::uint64_t>(price);
+  std::snprintf(buffer, sizeof buffer, "%s%llu.%02llu", sign,
+                static_cast<unsigned long long>(magnitude / kPriceScale),
+                static_cast<unsigned long long>((magnitude % kPriceScale) / 100));
   return buffer;
 }
 
