@@ -36,6 +36,7 @@ int main() {
 
     const Decision decision = engine.process(parsed.trade);
     std::cout << audit_json({parsed.trade, decision, parsed.account, parsed.symbol}) << '\n';
+    if (!decision.accepted() && decision.status != Status::Duplicate) ++errors;
   }
   return errors == 0 ? 0 : 1;
 }
