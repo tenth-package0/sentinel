@@ -195,6 +195,10 @@ std::string format_price(Price price) {
 }
 
 Price parse_price(double dollars) {
+  if (!std::isfinite(dollars) || dollars < 0 ||
+      dollars > static_cast<double>(kMaxPrice) / kPriceScale) {
+    return 0;
+  }
   return static_cast<Price>(std::llround(dollars * static_cast<double>(kPriceScale)));
 }
 
