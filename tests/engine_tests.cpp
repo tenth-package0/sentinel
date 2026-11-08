@@ -221,6 +221,19 @@ TEST(id_set_survives_growth) {
   CHECK(!set.insert(7919));
 }
 
+TEST(id_set_rejects_zero_and_supports_empty_capacity_hint) {
+  IdSet set(0);
+  CHECK(!set.contains(0));
+  CHECK(!set.insert(0));
+  CHECK(set.size() == 0);
+  CHECK(set.insert(1));
+  CHECK(set.insert(2));
+  CHECK(set.contains(1));
+  CHECK(set.contains(2));
+  CHECK(!set.insert(0));
+  CHECK(set.size() == 2);
+}
+
 TEST(prices_are_exact_integers) {
   CHECK(parse_price(191.42) == 1'914'200);
   CHECK(parse_price(0.0001) == 1);

@@ -15,9 +15,12 @@ namespace sentinel {
 // The table doubles when half full, which keeps probe sequences short.
 class IdSet {
  public:
-  explicit IdSet(std::size_t expected = 1024) { rebuild(std::bit_ceil(expected * 2)); }
+  explicit IdSet(std::size_t expected = 1024) {
+    rebuild(std::max(std::size_t{2}, std::bit_ceil(expected * 2)));
+  }
 
   bool contains(std::uint64_t id) const {
+    if (id == 0) return false;
     for (std::size_t i = slot(id);; i = (i + 1) & mask_) {
       if (slots_[i] == id) return true;
       if (slots_[i] == 0) return false;
@@ -26,6 +29,7 @@ class IdSet {
 
   // Returns false if the ID was already present.
   bool insert(std::uint64_t id) {
+    if (id == 0) return false;
     std::size_t i = slot(id);
     for (; slots_[i] != 0; i = (i + 1) & mask_) {
       if (slots_[i] == id) return false;
